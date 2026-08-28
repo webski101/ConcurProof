@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-27T13:58:02.676Z",
+  "title": "Design System: ConcurProof",
+  "extensions": {
+    "colorMeta": {
+      "signal": {
+        "role": "primary",
+        "displayName": "Reaction Signal",
+        "canonical": "#b9ed74",
+        "tonalRamp": ["#16200c", "#2d4219", "#466725", "#638d36", "#83b64b", "#a5db65", "#c8f39a", "#ebffd2"]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Incident Black",
+        "canonical": "#090c0b",
+        "tonalRamp": ["#090c0b", "#141a17", "#27312b", "#455149", "#68756c", "#929d96", "#c2cac5", "#eef5ef"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel Black",
+        "canonical": "#0e1311",
+        "tonalRamp": ["#0e1311", "#19211d", "#2b3730", "#46544b", "#68766d", "#939e97", "#c2cbc6", "#eef5ef"]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Evidence White",
+        "canonical": "#eef5ef",
+        "tonalRamp": ["#121713", "#29322b", "#465249", "#66736a", "#8d998f", "#b6c0b8", "#d7dfd9", "#eef5ef"]
+      },
+      "error": {
+        "role": "semantic",
+        "displayName": "Visible Failure",
+        "canonical": "#ff8d7d",
+        "tonalRamp": ["#30110d", "#5a2019", "#89332a", "#b84b3f", "#df6759", "#ff8d7d", "#ffbdb4", "#ffe7e3"]
+      },
+      "line-hover": {
+        "role": "neutral",
+        "displayName": "Interactive Rule",
+        "canonical": "#536057",
+        "tonalRamp": ["#101511", "#222a25", "#354039", "#536057", "#748078", "#99a29c", "#c1c8c3", "#edf2ee"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Product Thesis", "purpose": "One decisive headline per surface." },
+      "title": { "displayName": "Report Title", "purpose": "Major reports and bounded sections." },
+      "body": { "displayName": "Operational Body", "purpose": "Explanations and evidence summaries." },
+      "label": { "displayName": "Instrument Label", "purpose": "Uppercase context, timing, and data labels." },
+      "control": { "displayName": "Control Label", "purpose": "Compact uppercase button text." },
+      "status": { "displayName": "Status Label", "purpose": "Compact provenance and run-state badges." },
+      "detail": { "displayName": "Dense Detail", "purpose": "Event summaries in high-density feeds." },
+      "micro": { "displayName": "Micro Data", "purpose": "Graph edges, certificate notes, and tight table headers." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "state-standard", "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Button and link state transitions." },
+      { "name": "live-pulse", "value": "1200ms ease-out infinite", "purpose": "Active run status only; disabled when reduced motion is requested." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Starts the full experiment or returns from an empty state.",
+      "html": "<button class=\"ds-button-primary\">RUN FULL EXPERIMENT</button>",
+      "css": ".ds-button-primary { min-height: 42px; border: 1px solid #b9ed74; border-radius: 4px; padding: .72rem 1rem; background: #b9ed74; color: #17200e; font: 700 .76rem/1.2 'Geist Sans', sans-serif; letter-spacing: .055em; text-transform: uppercase; transition: background-color 180ms cubic-bezier(.16,1,.3,1), transform 180ms cubic-bezier(.16,1,.3,1); } .ds-button-primary:hover { background: #d1ff96; } .ds-button-primary:focus-visible { outline: 2px solid #b9ed74; outline-offset: 3px; } .ds-button-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Runs an ablation or downloads the certificate.",
+      "html": "<button class=\"ds-button-secondary\">RUN ABLATION</button>",
+      "css": ".ds-button-secondary { min-height: 42px; border: 1px solid #263029; border-radius: 4px; padding: .72rem 1rem; background: #141b17; color: #eef5ef; font: 700 .76rem/1.2 'Geist Sans', sans-serif; letter-spacing: .055em; text-transform: uppercase; transition: background-color 180ms cubic-bezier(.16,1,.3,1), border-color 180ms cubic-bezier(.16,1,.3,1); } .ds-button-secondary:hover { border-color: #536057; background: #18201b; } .ds-button-secondary:focus-visible { outline: 2px solid #b9ed74; outline-offset: 3px; }"
+    },
+    {
+      "name": "Run Provenance",
+      "kind": "chip",
+      "refersTo": "status",
+      "description": "Keeps fixture and real Mozaik results unmistakably distinct.",
+      "html": "<span class=\"ds-provenance\">DEMO / FIXTURE MODE</span>",
+      "css": ".ds-provenance { display: inline-flex; align-items: center; min-height: 24px; border: 1px solid color-mix(in srgb, #ff8d7d 45%, #263029); border-radius: 999px; padding: .28rem .52rem; color: #ff8d7d; font: 600 .66rem/1.2 'Geist Mono', monospace; letter-spacing: .05em; text-transform: uppercase; } .ds-provenance:focus-visible { outline: 2px solid #b9ed74; outline-offset: 3px; }"
+    },
+    {
+      "name": "Metric Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A flat ruled container for measured values.",
+      "html": "<section class=\"ds-panel\"><span class=\"ds-panel-label\">CONCURRENCY SCORE</span><strong>80.0/100</strong></section>",
+      "css": ".ds-panel { display: grid; gap: 8px; width: 240px; border: 1px solid #263029; border-radius: 6px; padding: 16px; background: #0e1311; color: #eef5ef; font: 600 1.25rem/1.2 'Geist Mono', monospace; } .ds-panel-label { color: #8c9b91; font-size: .625rem; letter-spacing: .1em; } .ds-panel:focus-within { border-color: #b9ed74; }"
+    },
+    {
+      "name": "Live Reaction Trace",
+      "kind": "custom",
+      "description": "The signature proof device linking one recorded output to a live response.",
+      "html": "<div class=\"ds-trace\"><span>EVIDENCE</span><i></i><span>HYPOTHESIS</span><b>62ms</b></div>",
+      "css": ".ds-trace { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px; width: 420px; color: #eef5ef; font: 600 .7rem/1.2 'Geist Mono', monospace; } .ds-trace i { height: 1px; border-top: 1px dashed #b9ed74; } .ds-trace b { border: 1px solid #263029; border-radius: 3px; padding: 4px 7px; background: #090c0b; color: #b9ed74; font-weight: 600; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Incident Signal Board",
+    "overview": "ConcurProof feels like the shared display in a production incident room: dense, calm, trustworthy, and immediately inspectable. Its drama comes from recorded activity crossing agent lanes, not from ambient effects, terminal cosplay, or decorative AI motifs. Off-black layers, crisp rules, compact typography, and one pale chartreuse signal make the interface feel instrument-like. The signature is the live reaction trace connecting a public agent output to another agent's response. It reads as evidence, not ornament.",
+    "keyCharacteristics": [
+      "Dense without feeling cramped",
+      "Flat, ruled, and instrument-like",
+      "One signal color reserved for action and causality",
+      "Monospaced numerals, timestamps, evidence codes, and run IDs",
+      "Motion only for live state and direct feedback"
+    ],
+    "rules": [
+      { "name": "The Signal Rarity Rule", "body": "Reaction Signal marks the current action, live state, or recorded causal relationship. Inactive structure stays neutral.", "section": "colors" },
+      { "name": "The Numeric Rail Rule", "body": "Every latency, score, timestamp, run ID, and evidence ID uses tabular monospaced figures.", "section": "typography" },
+      { "name": "The Flat Evidence Rule", "body": "If regions can be separated by spacing, alignment, tone, or one hairline, do not make either a floating card.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do make provenance visible wherever a score or run result appears.",
+      "Do preserve familiar button, disclosure, table, and link behavior.",
+      "Do let recorded events determine every timeline mark, edge, and number.",
+      "Do honor reduced motion and maintain keyboard-visible focus.",
+      "Do retain the wide instrument view through deliberate internal scrolling on small screens."
+    ],
+    "donts": [
+      "Don't use purple-blue AI gradients, glowing borders, fake terminal chrome, or decorative grid noise.",
+      "Don't invent decorative metrics, status lights, or activity outside recorded data.",
+      "Don't hide failures or let fixture output resemble a real model run.",
+      "Don't use display type in controls or dense data labels.",
+      "Don't replace structural rules with routine shadows or floating cards."
+    ]
+  }
+}

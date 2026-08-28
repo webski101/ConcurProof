@@ -7,4 +7,5 @@ coverage/
 data/runs/*.json
 data/experiments/*.json
 *.log
+*.tsbuildinfo
 .DS_Store

@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+:root {
+  --cp-bg: #090c0b;
+  --cp-panel: #0e1311;
+  --cp-panel-strong: #141b17;
+  --cp-line: #263029;
+  --cp-line-soft: #1a221d;
+  --cp-text: #eef5ef;
+  --cp-muted: #8c9b91;
+  --cp-faint: #7d8a81;
+  --cp-signal: #b9ed74;
+  --cp-signal-strong: #d1ff96;
+  --cp-signal-ink: #17200e;
+  --cp-error: #ff8d7d;
+  --cp-warning: #e8c46b;
+  --cp-radius: 6px;
+  --cp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--cp-bg);
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+  font-feature-settings: "ss01", "cv02", "cv03";
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+a,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--cp-signal);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--cp-signal);
+  color: var(--cp-signal-ink);
+}
+
+.cp-mono {
+  font-family: var(--font-geist-mono), "Cascadia Code", monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.cp-shell {
+  width: min(1540px, 100%);
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 2vw, 2rem);
+}
+
+.cp-rule {
+  border-color: var(--cp-line);
+}
+
+.cp-panel {
+  border: 1px solid var(--cp-line);
+  border-radius: var(--cp-radius);
+  background: color-mix(in srgb, var(--cp-panel) 94%, transparent);
+}
+
+.cp-signal-text {
+  color: var(--cp-signal);
+}
+
+.cp-primary-button,
+.cp-secondary-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border-radius: 4px;
+  padding: 0.72rem 1rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  transition:
+    background-color 180ms var(--cp-ease),
+    border-color 180ms var(--cp-ease),
+    color 180ms var(--cp-ease),
+    transform 180ms var(--cp-ease);
+}
+
+.cp-primary-button {
+  border: 1px solid var(--cp-signal);
+  background: var(--cp-signal);
+  color: var(--cp-signal-ink);
+}
+
+.cp-primary-button:hover:not(:disabled) {
+  background: var(--cp-signal-strong);
+}
+
+.cp-secondary-button {
+  border: 1px solid var(--cp-line);
+  background: var(--cp-panel-strong);
+  color: var(--cp-text);
+}
+
+.cp-secondary-button:hover:not(:disabled) {
+  border-color: #536057;
+  background: #18201b;
+}
+
+.cp-primary-button:active:not(:disabled),
+.cp-secondary-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.cp-primary-button:disabled,
+.cp-secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.cp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--cp-line);
+  border-radius: 999px;
+  padding: 0.28rem 0.52rem;
+  color: var(--cp-muted);
+  font-family: var(--font-geist-mono), "Cascadia Code", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cp-status[data-tone="signal"] {
+  border-color: color-mix(in srgb, var(--cp-signal) 45%, var(--cp-line));
+  color: var(--cp-signal);
+}
+
+.cp-status[data-tone="error"] {
+  border-color: color-mix(in srgb, var(--cp-error) 45%, var(--cp-line));
+  color: var(--cp-error);
+}
+
+.cp-live-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cp-live-pulse {
+    animation: cp-live-pulse 1.2s ease-out infinite;
+  }
+}
+
+@keyframes cp-live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(185 237 116 / 0.42);
+  }
+  75%,
+  100% {
+    box-shadow: 0 0 0 7px rgb(185 237 116 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -9,11 +9,13 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "proof:mozaik": "tsx scripts/mozaik-proof.ts"
+    "proof:mozaik": "tsx scripts/mozaik-proof.ts",
+    "benchmark:fixture": "tsx scripts/run-fixture.ts"
   },
   "dependencies": {
     "@mozaik-ai/core": "^3.14.0",
     "@phosphor-icons/react": "^2.1.10",
+    "geist": "^1.7.2",
     "html-to-image": "^1.11.13",
     "next": "^16.3.3",
     "react": "^19.2.8",
