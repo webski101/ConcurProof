@@ -1,9 +1,11 @@
-import { AgenticEnvironment } from "@mozaik-ai/core";
+import { createHuman, SemanticEvent } from "@mozaik-ai/core";
 import type { AgentFinding, AgentId, BenchmarkTask } from "@/lib/types";
 import type { ExperimentRunner, RunnerOptions } from "@/lib/runners/types";
 import { RunRecorder } from "@/lib/runners/recorder";
 import { createRunId, finalizeRun } from "@/lib/runners/finalize";
 import { ConcurProofObserver } from "@/lib/mozaik/observer";
+import { CONCURPROOF_RUN_EVENT } from "@/lib/mozaik/events";
+import { createConcurProofRuntime } from "@/lib/mozaik/runtime";
 import {
   CriticAgent,
   EvidenceAgent,
@@ -53,12 +55,9 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       this.options.onEvent,
     );
     const outputs: Partial<Record<AgentId, AgentFinding>> = {};
-    const environment = new AgenticEnvironment(
-      `concurproof-${this.options.experimentId}`,
-      { silent: true },
-    );
+    const runtime = createConcurProofRuntime();
     const shared = {
-      environment,
+      runtime,
       task,
       model: this.options.model,
       provenance: this.options.provenance,
@@ -66,7 +65,12 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       nextEventId: () => recorder.nextEventId(),
       ablation: this.options.ablation,
     };
-    const observer = new ConcurProofObserver(recorder);
+    const observer = new ConcurProofObserver(recorder, runtime.state);
+    const coordinator = createHuman({
+      name: "ConcurProof Coordinator",
+      capabilities: ["start-run"],
+      handlers: [],
+    });
     const agents: ReactiveAgent[] = [
       new EvidenceAgent(shared),
       new HypothesisAgent(shared),
@@ -74,19 +78,26 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       new VerifierAgent(shared),
     ];
 
-    observer.join(environment);
-    agents.forEach((agent) => agent.join(environment));
+    runtime.join(observer.participant);
+    runtime.join(coordinator);
+    agents.forEach((agent) => runtime.join(agent.participant));
     recorder.record({
       sourceAgent: "system",
       eventType: "run_started",
       payloadSummary: this.options.ablation
         ? `Reactive policy started without ${this.options.ablation.sourceAgent} to ${this.options.ablation.reactingAgent}`
-        : "Reactive policy started in a real AgenticEnvironment",
+        : "Reactive policy started in a real Mozaik v4 runtime",
     });
 
     try {
-      const initialTasks = agents.map((agent) => agent.startInitial());
-      await Promise.all(initialTasks);
+      runtime.sendEvent(
+        SemanticEvent.create(
+          CONCURPROOF_RUN_EVENT,
+          coordinator.getId(),
+          { experimentId: this.options.experimentId },
+        ),
+        coordinator.getId(),
+      );
       await waitForQuiescence(
         agents,
         Math.max(1, maximumRunDurationMs - (Date.now() - startedAt)),
@@ -135,9 +146,10 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       clearTimeout(safetyTimer);
       agents.forEach((agent) => {
         agent.stop();
-        agent.leave(environment);
+        runtime.leave(agent.participant);
       });
-      observer.leave(environment);
+      runtime.leave(coordinator);
+      runtime.leave(observer.participant);
     }
   }
 }

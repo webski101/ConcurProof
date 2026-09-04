@@ -1,12 +1,9 @@
 import {
-  AgenticEnvironment,
-  BaseParticipant,
-  DeveloperMessageItem,
-  ModelContext,
-  ModelMessageItem,
-  type ModelName,
-  runInference,
-  UserMessageItem,
+  createAgent,
+  type ModelMessageItem,
+  type SituationContext,
+  type SituationHandler,
+  SituationSpecification,
 } from "@mozaik-ai/core";
 import type { AgentFinding, AgentId, BenchmarkTask } from "@/lib/types";
 import {
@@ -15,93 +12,81 @@ import {
   parseAgentFinding,
   ROLE_PROMPTS,
 } from "@/lib/agents/prompts";
+import { createConcurProofRuntime } from "@/lib/mozaik/runtime";
 
-class OneShotParticipant extends BaseParticipant {
-  private resolve?: (value: AgentFinding) => void;
-  private reject?: (reason: Error) => void;
-
-  constructor(
-    private readonly role: AgentId,
-    private readonly task: BenchmarkTask,
-    private readonly previous: AgentFinding[],
-    private readonly model: ModelName,
-    private readonly environment: AgenticEnvironment,
-    private readonly signal: AbortSignal,
-  ) {
-    super();
-  }
-
-  run(): Promise<AgentFinding> {
-    const context = ModelContext.create(`${this.task.id}-${this.role}`)
-      .addContextItem(DeveloperMessageItem.create(ROLE_PROMPTS[this.role]))
-      .addContextItem(
-        UserMessageItem.create(buildTaskPrompt(this.task, this.previous)),
-      );
-
-    const result = new Promise<AgentFinding>((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
-    });
-
-    runInference({
-      model: this.model,
-      context,
-      caller: this,
-      environment: this.environment,
-      streaming: true,
-      structuredOutput: AGENT_FINDING_SCHEMA,
-      maxOutputTokens: 1200,
-      signal: this.signal,
-    });
-
-    return result;
-  }
-
-  override onModelMessage(item: ModelMessageItem): void {
-    try {
-      this.resolve?.(parseAgentFinding(item.content.text));
-    } catch (error) {
-      this.reject?.(
-        error instanceof Error ? error : new Error("Could not parse model output."),
-      );
-    }
-  }
-
-  override onError(error: Error): void {
-    this.reject?.(error);
+class OwnModelAnswerSpecification extends SituationSpecification {
+  override isSatisfiedBy({ event, participant }: SituationContext): boolean {
+    return event.type === "model.answer" && event.producerId === participant.getId();
   }
 }
+
+type ModelAnswerPayload = {
+  answer: ModelMessageItem;
+  loopId?: string;
+};
 
 export async function runModelAgent(input: {
   role: AgentId;
   task: BenchmarkTask;
   previous?: AgentFinding[];
-  model: ModelName;
+  model: string;
   timeoutMs?: number;
 }): Promise<AgentFinding> {
-  const environment = new AgenticEnvironment(
-    `concurproof-${input.role}-one-shot`,
-    { silent: true },
-  );
-  const abortController = new AbortController();
-  const participant = new OneShotParticipant(
-    input.role,
-    input.task,
-    input.previous ?? [],
-    input.model,
-    environment,
-    abortController.signal,
-  );
-  participant.join(environment);
+  const runtime = createConcurProofRuntime();
+  let resolveResult: (value: AgentFinding) => void = () => undefined;
+  let rejectResult: (reason: Error) => void = () => undefined;
+
+  const result = new Promise<AgentFinding>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+  const answerHandler: SituationHandler = {
+    specification: new OwnModelAnswerSpecification(),
+    processor: {
+      apply: ({ event }) => {
+        try {
+          const { answer } = event.payload as ModelAnswerPayload;
+          resolveResult(parseAgentFinding(answer.content.text));
+        } catch (error) {
+          rejectResult(
+            error instanceof Error
+              ? error
+              : new Error("Could not parse model output."),
+          );
+        }
+      },
+    },
+  };
+  const participant = createAgent({
+    name: `${input.role} agent`,
+    capabilities: ["inference", "structured-output"],
+    instruction: ROLE_PROMPTS[input.role],
+    tools: [],
+    handlers: [answerHandler],
+  });
+  runtime.state.registerAgent(participant, input.role);
+  runtime.join(participant);
 
   const timeout = setTimeout(
-    () => abortController.abort(new Error("Model inference timed out.")),
+    () => rejectResult(new Error("Mozaik v4 agent loop timed out.")),
     input.timeoutMs ?? 90_000,
   );
   try {
-    return await participant.run();
+    runtime.runLoop(
+      participant.getId(),
+      buildTaskPrompt(input.task, input.previous ?? []),
+      {
+        model: input.model,
+        context: participant.getMemory().getContext(),
+        tools: participant.getTools(),
+        streaming: true,
+        structuredOutput: AGENT_FINDING_SCHEMA,
+        maxOutputTokens: 1200,
+      },
+    );
+    return await result;
   } finally {
     clearTimeout(timeout);
-    participant.leave(environment);
+    runtime.leave(participant);
   }
 }

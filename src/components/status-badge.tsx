@@ -9,7 +9,7 @@ export function ProvenanceBadge({
   return (
     <span className="cp-status" data-tone={fixture ? "error" : "signal"}>
       {fixture ? <WarningCircle size={12} weight="fill" /> : <span className="cp-live-pulse" />}
-      {fixture ? "Demo / Fixture mode" : "Real Mozaik run"}
+      {fixture ? "Demo / Fixture mode" : "Real Mozaik v4 run"}
     </span>
   );
 }

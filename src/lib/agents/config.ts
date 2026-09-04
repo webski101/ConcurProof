@@ -1,10 +1,9 @@
-import type { ModelName } from "@mozaik-ai/core";
 import type { RunProvenance } from "@/lib/types";
 
-export const DEFAULT_MODEL: ModelName = "gpt-5.4-mini";
+export const DEFAULT_MODEL = "gpt-5.4-mini";
 
-export function getConfiguredModel(): ModelName {
-  return (process.env.MOZAIK_MODEL?.trim() || DEFAULT_MODEL) as ModelName;
+export function getConfiguredModel(): string {
+  return process.env.MOZAIK_MODEL?.trim() || DEFAULT_MODEL;
 }
 
 export function hasProviderKey(model: string): boolean {

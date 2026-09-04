@@ -13,7 +13,7 @@
     "benchmark:fixture": "tsx scripts/run-fixture.ts"
   },
   "dependencies": {
-    "@mozaik-ai/core": "^3.14.0",
+    "@mozaik-ai/core": "^4.0.5",
     "@phosphor-icons/react": "^2.1.10",
     "geist": "^1.7.2",
     "html-to-image": "^1.11.13",

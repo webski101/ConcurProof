@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import {
-  AgenticEnvironment,
-  BaseParticipant,
-  Participant,
+  createAgent,
+  createHuman,
+  defineRuntime,
+  RuntimeState,
   SemanticEvent,
+  type SituationContext,
+  type SituationHandler,
+  SituationSpecification,
 } from "@mozaik-ai/core";
 
 type ProofEvent = {
@@ -18,107 +22,115 @@ type ObservedEvent = ProofEvent & {
   observedAt: number;
 };
 
-class ProofEmitter extends BaseParticipant {
-  constructor(private readonly environment: AgenticEnvironment) {
+class ProofRuntimeState extends RuntimeState {}
+
+class EventTypeSpecification extends SituationSpecification {
+  constructor(private readonly eventType: string) {
     super();
   }
 
-  emitDiscovery(): void {
-    this.environment.deliverSemanticEvent(
-      this,
-      new SemanticEvent<ProofEvent>("concurproof.discovery", {
-        eventId: "proof-discovery-1",
-        kind: "discovery",
-        message: "E07 correlates memory growth with deployment v2.4.1",
-      }),
-    );
+  override isSatisfiedBy({ event }: SituationContext): boolean {
+    return event.type === this.eventType;
   }
 }
 
-class ProofResponder extends BaseParticipant {
-  reacted = false;
+const runtime = defineRuntime<ProofRuntimeState>();
+runtime.initializeRuntime({ state: new ProofRuntimeState() });
 
-  constructor(private readonly environment: AgenticEnvironment) {
-    super();
-  }
+const observedEvents: ObservedEvent[] = [];
+let reacted = false;
 
-  override onExternalEvent(
-    source: Participant,
-    event: SemanticEvent<unknown>,
-  ): void {
-    if (!(source instanceof ProofEmitter) || event.type !== "concurproof.discovery") {
-      return;
-    }
+const observerHandler: SituationHandler = {
+  specification: new EventTypeSpecification("concurproof.discovery").or(
+    new EventTypeSpecification("concurproof.reaction"),
+  ),
+  processor: {
+    apply: ({ event }) => {
+      const source = runtime.resolveParticipant(event.producerId);
+      observedEvents.push({
+        ...(event.payload as ProofEvent),
+        source: source.getManifest().name,
+        observedAt: Date.now(),
+      });
+    },
+  },
+};
 
-    const discovery = event.data as ProofEvent;
-    this.reacted = true;
-    this.environment.deliverSemanticEvent(
-      this,
-      new SemanticEvent<ProofEvent>("concurproof.reaction", {
-        eventId: "proof-reaction-1",
-        kind: "reaction",
-        reactionToEventId: discovery.eventId,
-        message: "Responder updated its hypothesis from the live E07 discovery",
-      }),
-    );
-  }
-}
+const responderHandler: SituationHandler = {
+  specification: new EventTypeSpecification("concurproof.discovery"),
+  processor: {
+    apply: ({ event }) => {
+      const discovery = event.payload as ProofEvent;
+      reacted = true;
+      runtime.sendEvent(
+        SemanticEvent.create(
+          "concurproof.reaction",
+          responder.getId(),
+          {
+            eventId: "proof-reaction-1",
+            kind: "reaction",
+            reactionToEventId: discovery.eventId,
+            message: "Responder updated its hypothesis from the live E07 discovery",
+          } satisfies ProofEvent,
+        ),
+        responder.getId(),
+      );
+    },
+  },
+};
 
-class ProofObserver extends BaseParticipant {
-  readonly events: ObservedEvent[] = [];
-
-  override onExternalEvent(
-    source: Participant,
-    event: SemanticEvent<unknown>,
-  ): void {
-    if (!event.type.startsWith("concurproof.")) {
-      return;
-    }
-
-    this.events.push({
-      ...(event.data as ProofEvent),
-      source: source.constructor.name,
-      observedAt: Date.now(),
-    });
-  }
-}
-
-const environment = new AgenticEnvironment("concurproof-milestone-1", {
-  silent: true,
+const emitter = createHuman({
+  name: "Proof Emitter",
+  capabilities: ["semantic-events"],
+  handlers: [],
 });
-const emitter = new ProofEmitter(environment);
-const observer = new ProofObserver();
-const responder = new ProofResponder(environment);
+const observer = createHuman({
+  name: "Proof Observer",
+  capabilities: ["audit"],
+  handlers: [observerHandler],
+});
+const responder = createAgent({
+  name: "Proof Responder",
+  capabilities: ["semantic-events"],
+  instruction: "React to proof discoveries.",
+  tools: [],
+  handlers: [responderHandler],
+});
 
-// Observer joins before the responder so it records the source event before the
-// responder synchronously publishes its explicitly-linked reaction event.
-emitter.join(environment);
-observer.join(environment);
-responder.join(environment);
+runtime.join(emitter);
+runtime.join(observer);
+runtime.join(responder);
 
-emitter.emitDiscovery();
+runtime.sendEvent(
+  SemanticEvent.create("concurproof.discovery", emitter.getId(), {
+    eventId: "proof-discovery-1",
+    kind: "discovery",
+    message: "E07 correlates memory growth with deployment v2.4.1",
+  } satisfies ProofEvent),
+  emitter.getId(),
+);
 
-assert.equal(emitter.isJoinedTo(environment), true);
-assert.equal(responder.isJoinedTo(environment), true);
-assert.equal(observer.isJoinedTo(environment), true);
-assert.equal(responder.reacted, true);
+assert.equal(runtime.resolveRuntime().state.getParticipants().length, 3);
+assert.equal(runtime.resolveParticipant(emitter.getId()), emitter);
+assert.equal(runtime.resolveParticipant(responder.getId()), responder);
+assert.equal(runtime.resolveParticipant(observer.getId()), observer);
+assert.equal(reacted, true);
 assert.deepEqual(
-  observer.events.map((event) => event.kind),
+  observedEvents.map((event) => event.kind),
   ["discovery", "reaction"],
 );
-assert.equal(observer.events[1].reactionToEventId, observer.events[0].eventId);
+assert.equal(observedEvents[1].reactionToEventId, observedEvents[0].eventId);
 
 console.log(
   JSON.stringify(
     {
       passed: true,
-      environment: "AgenticEnvironment",
-      joinedParticipants: [
-        emitter.constructor.name,
-        responder.constructor.name,
-        observer.constructor.name,
-      ],
-      observerEvents: observer.events,
+      runtime: "Mozaik v4 defineRuntime",
+      joinedParticipants: runtime
+        .resolveRuntime()
+        .state.getParticipants()
+        .map((participant) => participant.getManifest().name),
+      observerEvents: observedEvents,
     },
     null,
     2,

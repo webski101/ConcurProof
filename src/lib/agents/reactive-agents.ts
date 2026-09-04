@@ -1,14 +1,11 @@
 import {
-  AgenticEnvironment,
-  BaseParticipant,
-  DeveloperMessageItem,
-  ModelContext,
-  ModelMessageItem,
-  Participant,
+  createAgent,
   SemanticEvent,
-  type ModelName,
-  runInference,
-  UserMessageItem,
+  type Agent,
+  type ModelMessageItem,
+  type SituationContext,
+  type SituationHandler,
+  SituationSpecification,
 } from "@mozaik-ai/core";
 import type {
   AblationRule,
@@ -26,8 +23,10 @@ import {
 } from "@/lib/agents/prompts";
 import {
   CONCURPROOF_AUDIT_EVENT,
+  CONCURPROOF_RUN_EVENT,
   type ConcurProofAuditPayload,
 } from "@/lib/mozaik/events";
+import type { ConcurProofRuntime } from "@/lib/mozaik/runtime";
 
 type Trigger = {
   eventId: string;
@@ -36,7 +35,7 @@ type Trigger = {
 };
 
 type AgentOptions = {
-  environment: AgenticEnvironment;
+  runtime: ConcurProofRuntime;
   task: BenchmarkTask;
   model: string;
   provenance: RunProvenance;
@@ -73,7 +72,29 @@ const MAX_REACTIONS: Record<AgentId, number> = {
   verifier: 4,
 };
 
-abstract class ConcurProofAgent extends BaseParticipant {
+class EventTypeSpecification extends SituationSpecification {
+  constructor(
+    private readonly eventType: string,
+    private readonly source: "any" | "self" | "other" = "any",
+  ) {
+    super();
+  }
+
+  override isSatisfiedBy({ event, participant }: SituationContext): boolean {
+    if (event.type !== this.eventType) return false;
+    if (this.source === "self") return event.producerId === participant.getId();
+    if (this.source === "other") return event.producerId !== participant.getId();
+    return true;
+  }
+}
+
+type ModelAnswerPayload = {
+  answer: ModelMessageItem;
+  loopId?: string;
+};
+
+abstract class ConcurProofAgent {
+  readonly participant: Agent;
   readonly findings: AgentFinding[] = [];
   readonly tasks = new Set<Promise<void>>();
   private readonly processedEvents = new Set<string>();
@@ -81,6 +102,7 @@ abstract class ConcurProofAgent extends BaseParticipant {
   private activitySequence = 0;
   private inferenceResolve?: (finding: AgentFinding) => void;
   private inferenceReject?: (error: Error) => void;
+  private inferenceCleanup?: () => void;
   private realQueue = Promise.resolve();
   private stopped = false;
   failure?: string;
@@ -89,15 +111,44 @@ abstract class ConcurProofAgent extends BaseParticipant {
     readonly agentId: AgentId,
     protected readonly options: AgentOptions,
   ) {
-    super();
-  }
-
-  startInitial(): Promise<void> {
-    return this.launch("initial");
+    const handlers: SituationHandler[] = [
+      {
+        specification: new EventTypeSpecification(CONCURPROOF_RUN_EVENT),
+        processor: {
+          apply: () => {
+            void this.launch("initial");
+          },
+        },
+      },
+      {
+        specification: new EventTypeSpecification(
+          CONCURPROOF_AUDIT_EVENT,
+          "other",
+        ),
+        processor: {
+          apply: ({ event }) => this.onAuditEvent(event),
+        },
+      },
+      {
+        specification: new EventTypeSpecification("model.answer", "self"),
+        processor: {
+          apply: ({ event }) => this.onModelAnswer(event),
+        },
+      },
+    ];
+    this.participant = createAgent({
+      name: `${agentId} agent`,
+      capabilities: ["inference", "semantic-events", "structured-output"],
+      instruction: ROLE_PROMPTS[agentId],
+      tools: [],
+      handlers,
+    });
+    this.options.runtime.state.registerAgent(this.participant, agentId);
   }
 
   stop(): void {
     this.stopped = true;
+    this.inferenceReject?.(new Error(`${this.agentId} agent stopped.`));
   }
 
   bestFinding(): AgentFinding | undefined {
@@ -106,13 +157,17 @@ abstract class ConcurProofAgent extends BaseParticipant {
 
   protected emit(payload: Omit<ConcurProofAuditPayload, "eventId" | "agent">): string {
     const eventId = this.options.nextEventId();
-    this.options.environment.deliverSemanticEvent(
-      this,
-      new SemanticEvent<ConcurProofAuditPayload>(CONCURPROOF_AUDIT_EVENT, {
-        ...payload,
-        eventId,
-        agent: this.agentId,
-      }),
+    this.options.runtime.sendEvent(
+      SemanticEvent.create(
+        CONCURPROOF_AUDIT_EVENT,
+        this.participant.getId(),
+        {
+          ...payload,
+          eventId,
+          agent: this.agentId,
+        } satisfies ConcurProofAuditPayload,
+      ),
+      this.participant.getId(),
     );
     return eventId;
   }
@@ -187,69 +242,79 @@ abstract class ConcurProofAgent extends BaseParticipant {
   }
 
   private modelFinding(trigger?: Trigger): Promise<AgentFinding> {
-    const context = ModelContext.create(
-      `${this.options.task.id}-${this.agentId}-${this.findings.length + 1}`,
-    )
-      .addContextItem(DeveloperMessageItem.create(ROLE_PROMPTS[this.agentId]))
-      .addContextItem(
-        UserMessageItem.create(
-          buildTaskPrompt(
-            this.options.task,
-            this.findings,
-            trigger
-              ? {
-                  sourceEventId: trigger.eventId,
-                  sourceAgent: trigger.sourceAgent,
-                  summary: trigger.finding.summary,
-                }
-              : undefined,
-          ),
-        ),
-      );
-
     const result = new Promise<AgentFinding>((resolve, reject) => {
-      this.inferenceResolve = resolve;
-      this.inferenceReject = reject;
+      const onAbort = () => {
+        const reason = this.options.signal.reason;
+        this.inferenceReject?.(
+          reason instanceof Error ? reason : new Error("Agent loop aborted."),
+        );
+      };
+      const cleanup = () => {
+        this.options.signal.removeEventListener("abort", onAbort);
+        this.inferenceResolve = undefined;
+        this.inferenceReject = undefined;
+        this.inferenceCleanup = undefined;
+      };
+      this.inferenceCleanup = cleanup;
+      this.inferenceResolve = (finding) => {
+        cleanup();
+        resolve(finding);
+      };
+      this.inferenceReject = (error) => {
+        cleanup();
+        reject(error);
+      };
+      if (this.options.signal.aborted) {
+        onAbort();
+        cleanup();
+        return;
+      }
+      this.options.signal.addEventListener("abort", onAbort, { once: true });
     });
-    runInference({
-      model: this.options.model as ModelName,
-      context,
-      caller: this,
-      environment: this.options.environment,
-      streaming: true,
-      structuredOutput: AGENT_FINDING_SCHEMA,
-      maxOutputTokens: 1200,
-      signal: this.options.signal,
-    });
+
+    if (!this.options.signal.aborted) {
+      this.options.runtime.runLoop(
+        this.participant.getId(),
+        buildTaskPrompt(
+          this.options.task,
+          this.findings,
+          trigger
+            ? {
+                sourceEventId: trigger.eventId,
+                sourceAgent: trigger.sourceAgent,
+                summary: trigger.finding.summary,
+              }
+            : undefined,
+        ),
+        {
+          model: this.options.model,
+          context: this.participant.getMemory().getContext(),
+          tools: this.participant.getTools(),
+          streaming: true,
+          structuredOutput: AGENT_FINDING_SCHEMA,
+          maxOutputTokens: 1200,
+        },
+      );
+    }
     return result;
   }
 
-  override onModelMessage(item: ModelMessageItem): void {
+  private onModelAnswer(event: SemanticEvent): void {
     try {
-      this.inferenceResolve?.(parseAgentFinding(item.content.text));
+      const { answer } = event.payload as ModelAnswerPayload;
+      this.participant.getMemory().getContext().addContextItem(answer);
+      this.inferenceResolve?.(parseAgentFinding(answer.content.text));
     } catch (error) {
       this.inferenceReject?.(
         error instanceof Error ? error : new Error("Invalid model response."),
       );
-    } finally {
-      this.inferenceResolve = undefined;
-      this.inferenceReject = undefined;
     }
   }
 
-  override onError(error: Error): void {
-    this.inferenceReject?.(error);
-    this.inferenceResolve = undefined;
-    this.inferenceReject = undefined;
-  }
-
-  override onExternalEvent(
-    source: Participant,
-    event: SemanticEvent<unknown>,
-  ): void {
-    if (event.type !== CONCURPROOF_AUDIT_EVENT || !("agentId" in source)) return;
-    const payload = event.data as ConcurProofAuditPayload;
-    const sourceAgent = (source as Participant & { agentId: AgentId }).agentId;
+  private onAuditEvent(event: SemanticEvent): void {
+    const sourceAgent = this.options.runtime.state.agentIdFor(event.producerId);
+    if (!sourceAgent) return;
+    const payload = event.payload as ConcurProofAuditPayload;
     if (
       sourceAgent === this.agentId ||
       payload.eventType !== "agent_output" ||

@@ -25,7 +25,7 @@ The MVP is a local Next.js developer tool demonstrated in a 2-3 minute flow. Its
 ## Capabilities and Constraints
 
 - The three runners share one benchmark, evidence set, agent roles, model setting, and scoring system.
-- Reactive Concurrent mode uses the real `@mozaik-ai/core` `AgenticEnvironment`; it may not be replaced by a custom event bus.
+- Reactive Concurrent mode uses a real `@mozaik-ai/core` v4 runtime created with `defineRuntime`; it may not be replaced by a custom event bus.
 - Four LLM-capable agents collaborate: Evidence, Hypothesis, Critic, and Verifier.
 - `ConcurProofObserver` is a passive Mozaik participant and never calls an LLM.
 - Live events reach the browser through server-sent events or an equivalently simple stream.

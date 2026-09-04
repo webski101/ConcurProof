@@ -14,15 +14,17 @@ One click executes the same four roles in three modes:
 | --- | --- | --- |
 | Sequential | Evidence, then Hypothesis, then Critic, then Verifier | No |
 | Naive Parallel | All four start together with isolated context | No |
-| Reactive Concurrent | All four join one Mozaik environment and selectively react to semantic events | Yes |
+| Reactive Concurrent | All four join one Mozaik v4 runtime and selectively react through situation handlers | Yes |
 
 The dashboard streams each run through server-sent events, renders real activity intervals, links triggering and responding events, persists completed results as JSON, and supports one reaction-edge ablation.
 
 ## Why Mozaik?
 
-Reactive Concurrent mode uses the installed `@mozaik-ai/core` package directly. `EvidenceAgent`, `HypothesisAgent`, `CriticAgent`, `VerifierAgent`, and the passive `ConcurProofObserver` all join one real `AgenticEnvironment`. Agents publish structured `SemanticEvent` payloads and respond through `onExternalEvent` while other work is still active. Real model runs use `ModelContext` and streaming `runInference`; the observer records public event metadata and structured outputs, never private chain-of-thought.
+Reactive Concurrent mode uses `@mozaik-ai/core` v4 directly. Every experiment creates an isolated runtime with `defineRuntime`, a typed `RuntimeState`, four agents from `createAgent`, and a passive observer from `createHuman`. A semantic run-start event activates all four agents; situation handlers then publish and react to structured `SemanticEvent` payloads while other work is still active. Provider-backed runs use the native streaming `runLoop`, and the observer records safe lifecycle metadata, public structured outputs, and v4 loop IDs without persisting streaming content or private chain-of-thought.
 
-The fixture path changes model output generation only. Reactive fixture runs still use the real Mozaik participant and environment lifecycle, and every fixture result is visibly labelled `Demo / Fixture mode`.
+The fixture path changes model output generation only. Reactive fixture runs still use the real Mozaik v4 runtime, participant factories, semantic events, and situation processors, and every fixture result is visibly labelled `Demo / Fixture mode`.
+
+Mozaik Cloud is optional. When `MOZAIK_API_KEY` is present, provider-backed v4 loop events are exported by the runtime. The example environment sets `MOZAIK_REDACTION=content` so prompts, answers, and tool output are redacted by default.
 
 ## Demo
 
@@ -48,12 +50,12 @@ flowchart LR
     Engine --> SQ[SequentialRunner]
     Engine --> NP[ParallelRunner]
     Engine --> RC[ReactiveConcurrentRunner]
-    RC --> ENV[Mozaik AgenticEnvironment]
-    ENV --> E[EvidenceAgent]
-    ENV --> H[HypothesisAgent]
-    ENV --> C[CriticAgent]
-    ENV --> V[VerifierAgent]
-    ENV --> O[ConcurProofObserver]
+    RC --> ENV[Mozaik v4 Runtime]
+    ENV --> E[createAgent: Evidence]
+    ENV --> H[createAgent: Hypothesis]
+    ENV --> C[createAgent: Critic]
+    ENV --> V[createAgent: Verifier]
+    ENV --> O[createHuman: Observer]
     SQ --> Score[Deterministic metrics and quality]
     NP --> Score
     O --> Score
@@ -66,7 +68,7 @@ Key implementation areas:
 
 - `src/lib/benchmarks`: controlled evidence and known-answer definition
 - `src/lib/agents`: shared prompts, fixture outputs, one-shot inference, and four reactive participants
-- `src/lib/mozaik`: semantic event contract and passive observer
+- `src/lib/mozaik`: v4 runtime state, semantic event contracts, and passive situation-handler observer
 - `src/lib/runners`: the three execution policies and common run finalization
 - `src/lib/metrics`: overlap, reaction, quality, lift, and concurrency score calculations
 - `src/lib/experiments`: run orchestration, SSE session state, and ablation
@@ -165,7 +167,7 @@ Open [http://localhost:3000](http://localhost:3000). If port 3000 is occupied, N
 Useful commands:
 
 ```bash
-npm run proof:mozaik       # two participants plus observer in one real environment
+npm run proof:mozaik       # factories, runtime membership, semantic reaction, and observer proof
 npm run benchmark:fixture  # deterministic three-mode CLI run plus ablation
 npm test                   # metric unit tests
 npm run lint
@@ -188,6 +190,9 @@ All credentials are read only on the server.
 | `OPENAI_API_KEY` | Credential for an OpenAI model. |
 | `ANTHROPIC_API_KEY` | Credential when `MOZAIK_MODEL` starts with `claude-`. |
 | `GEMINI_API_KEY` | Credential when `MOZAIK_MODEL` starts with `gemini-`. |
+| `MOZAIK_API_KEY` | Optional Mozaik Cloud project key for native v4 loop telemetry. |
+| `MOZAIK_PROJECT_ID` | Optional Mozaik Cloud project handle. |
+| `MOZAIK_REDACTION` | Cloud payload privacy level; the example defaults to `content`. |
 
 Only the credential for the selected provider is required. With no matching provider key, ConcurProof deliberately enters labelled fixture mode. If a configured real provider or model fails, the run is marked failed and the error is shown; fixture data is not substituted.
 
@@ -207,4 +212,4 @@ Runs are written atomically to `data/runs/<run-id>.json`; comparisons are writte
 
 ## Verification status
 
-The repository includes the Milestone 1 Mozaik proof, deterministic metric tests, a fixture benchmark script, production build checks, and the complete browser flow for the dashboard, persisted run view, comparison view, and ablation.
+The repository includes a Mozaik v4 runtime proof, deterministic metric tests, a fixture benchmark script, production build checks, and the complete browser flow for the dashboard, persisted run view, comparison view, and ablation.

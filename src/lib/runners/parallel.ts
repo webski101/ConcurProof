@@ -4,7 +4,6 @@ import { RunRecorder } from "@/lib/runners/recorder";
 import { createRunId, finalizeRun } from "@/lib/runners/finalize";
 import { fixtureDelay, fixtureFinding, sleep } from "@/lib/agents/fixture";
 import { runModelAgent } from "@/lib/agents/model-inference";
-import type { ModelName } from "@mozaik-ai/core";
 
 const ROLES: AgentId[] = ["evidence", "hypothesis", "critic", "verifier"];
 
@@ -40,7 +39,7 @@ export class ParallelRunner implements ExperimentRunner {
                   role,
                   task,
                   previous: [],
-                  model: this.options.model as ModelName,
+                  model: this.options.model,
                 });
           outputs[role] = finding;
           recorder.recordOutput(role, finding);
