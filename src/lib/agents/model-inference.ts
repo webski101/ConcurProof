@@ -77,7 +77,7 @@ export async function runModelAgent(input: {
   try {
     runtime.runLoop(
       participant.getId(),
-      buildTaskPrompt(input.task, input.previous ?? []),
+      buildTaskPrompt(input.task, input.role, input.previous ?? []),
       {
         model: input.model,
         context: participant.getMemory().getContext(),

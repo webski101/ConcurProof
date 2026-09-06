@@ -191,6 +191,7 @@ All credentials are read only on the server.
 | `ANTHROPIC_API_KEY` | Credential when `MOZAIK_MODEL` starts with `claude-`. |
 | `GEMINI_API_KEY` | Credential when `MOZAIK_MODEL` starts with `gemini-`. |
 | `GEMINI_REQUESTS_PER_MINUTE` | Optional Gemini quota gate; defaults to `5` for free-tier compatibility. |
+| `MOZAIK_MAX_MODEL_REACTIONS` | Optional real-run reaction cap; Gemini defaults to `3` so a full free-tier run stays within its daily request budget. |
 | `MOZAIK_API_KEY` | Optional Mozaik Cloud project key for native v4 loop telemetry. |
 | `MOZAIK_PROJECT_ID` | Optional Mozaik Cloud project handle. |
 | `MOZAIK_REDACTION` | Cloud payload privacy level; the example defaults to `content`. |

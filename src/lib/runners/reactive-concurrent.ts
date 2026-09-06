@@ -20,6 +20,12 @@ type ReactiveAgent =
   | CriticAgent
   | VerifierAgent;
 
+function maximumModelReactions(model: string): number {
+  const configured = Number(process.env.MOZAIK_MAX_MODEL_REACTIONS);
+  if (Number.isInteger(configured) && configured >= 0) return configured;
+  return model.startsWith("gemini-") ? 3 : 8;
+}
+
 async function waitForQuiescence(
   agents: ReactiveAgent[],
   timeoutMs: number,
@@ -58,6 +64,8 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
     );
     const outputs: Partial<Record<AgentId, AgentFinding>> = {};
     const runtime = createConcurProofRuntime();
+    const modelReactionLimit = maximumModelReactions(this.options.model);
+    let modelReactions = 0;
     const shared = {
       runtime,
       task,
@@ -66,6 +74,11 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       signal: abortController.signal,
       nextEventId: () => recorder.nextEventId(),
       initialQuotaReserved: this.options.provenance === "real-mozaik",
+      reserveReaction: () => {
+        if (modelReactions >= modelReactionLimit) return false;
+        modelReactions += 1;
+        return true;
+      },
       ablation: this.options.ablation,
     };
     const observer = new ConcurProofObserver(recorder, runtime.state);
@@ -119,7 +132,7 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       }
 
       for (const agent of agents) {
-        outputs[agent.agentId] = agent.bestFinding();
+        outputs[agent.agentId] = agent.currentFinding();
       }
       recorder.record({
         sourceAgent: "system",

@@ -43,6 +43,7 @@ type AgentOptions = {
   signal: AbortSignal;
   nextEventId: () => string;
   initialQuotaReserved?: boolean;
+  reserveReaction?: () => boolean;
   ablation?: AblationRule;
 };
 
@@ -153,8 +154,8 @@ abstract class ConcurProofAgent {
     this.inferenceReject?.(new Error(`${this.agentId} agent stopped.`));
   }
 
-  bestFinding(): AgentFinding | undefined {
-    return [...this.findings].sort((a, b) => b.confidence - a.confidence)[0];
+  currentFinding(): AgentFinding | undefined {
+    return this.findings.at(-1);
   }
 
   protected emit(payload: Omit<ConcurProofAuditPayload, "eventId" | "agent">): string {
@@ -284,12 +285,13 @@ abstract class ConcurProofAgent {
         this.participant.getId(),
         buildTaskPrompt(
           this.options.task,
+          this.agentId,
           this.findings,
           trigger
             ? {
                 sourceEventId: trigger.eventId,
                 sourceAgent: trigger.sourceAgent,
-                summary: trigger.finding.summary,
+                finding: trigger.finding,
               }
             : undefined,
         ),
@@ -337,6 +339,13 @@ abstract class ConcurProofAgent {
     if (
       this.options.ablation?.sourceAgent === sourceAgent &&
       this.options.ablation.reactingAgent === this.agentId
+    ) {
+      return;
+    }
+    if (
+      this.options.provenance === "real-mozaik" &&
+      this.options.reserveReaction &&
+      !this.options.reserveReaction()
     ) {
       return;
     }
@@ -431,8 +440,12 @@ export class CriticAgent extends ConcurProofAgent {
     super("critic", options);
   }
 
-  protected shouldReact(sourceAgent: AgentId): boolean {
-    return sourceAgent === "hypothesis";
+  protected shouldReact(sourceAgent: AgentId, finding: AgentFinding): boolean {
+    return (
+      sourceAgent === "hypothesis" &&
+      finding.evidenceIds.includes("E11") &&
+      finding.claimIds.includes("C_CACHE_IS_UNBOUNDED")
+    );
   }
 
   protected initialFixture(): AgentFinding {
@@ -487,11 +500,18 @@ export class VerifierAgent extends ConcurProofAgent {
     sourceAgent: AgentId,
     finding: AgentFinding,
   ): boolean {
-    if (sourceAgent === "evidence") return true;
     if (sourceAgent === "hypothesis") {
-      return finding.rootCauseId === this.options.task.expected.rootCauseId;
+      return (
+        finding.evidenceIds.includes("E11") &&
+        finding.claimIds.includes("C_CACHE_IS_UNBOUNDED")
+      );
     }
-    return sourceAgent === "critic" && finding.confidence >= 0.8;
+    return (
+      sourceAgent === "critic" &&
+      finding.confidence >= 0.8 &&
+      finding.evidenceIds.includes("E11") &&
+      finding.claimIds.includes("C_CACHE_IS_UNBOUNDED")
+    );
   }
 
   protected initialFixture(): AgentFinding {
