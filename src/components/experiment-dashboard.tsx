@@ -278,7 +278,7 @@ export function ExperimentDashboard({
         <section className="mt-10 border-t border-[var(--cp-line)] pt-6">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-sm font-semibold">Recent experiments</h2>
-            <span className="text-[10px] text-[var(--cp-faint)]">Persisted on this machine</span>
+            <span className="text-[10px] text-[var(--cp-faint)]">Persisted securely</span>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {recentComparisons.map((item) => (
