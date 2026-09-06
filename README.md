@@ -20,7 +20,7 @@ The dashboard streams each run through server-sent events, renders real activity
 
 ## Why Mozaik?
 
-Reactive Concurrent mode uses `@mozaik-ai/core` v4 directly. Every experiment creates an isolated runtime with `defineRuntime`, a typed `RuntimeState`, four agents from `createAgent`, and a passive observer from `createHuman`. A semantic run-start event activates all four agents; situation handlers then publish and react to structured `SemanticEvent` payloads while other work is still active. Provider-backed runs use the native streaming `runLoop`, and the observer records safe lifecycle metadata, public structured outputs, and v4 loop IDs without persisting streaming content or private chain-of-thought.
+Reactive Concurrent mode uses `@mozaik-ai/core` v4 directly. Every experiment creates an isolated runtime with `defineRuntime`, a typed `RuntimeState`, four agents from `createAgent`, and a passive observer from `createHuman`. A semantic run-start event activates all four agents; situation handlers then publish and react to structured `SemanticEvent` payloads while other work is still active. Provider-backed runs use the native `runLoop`, and the observer records safe lifecycle metadata, public structured outputs, and v4 loop IDs without persisting private chain-of-thought. ConcurProof streams those lifecycle events to the dashboard over SSE.
 
 The fixture path changes model output generation only. Reactive fixture runs still use the real Mozaik v4 runtime, participant factories, semantic events, and situation processors, and every fixture result is visibly labelled `Demo / Fixture mode`.
 
@@ -186,10 +186,11 @@ All credentials are read only on the server.
 
 | Variable | Purpose |
 | --- | --- |
-| `MOZAIK_MODEL` | Mozaik model name. Defaults to `gpt-5.4-mini`. |
+| `MOZAIK_MODEL` | Mozaik model name. The example uses free-tier `gemini-3.5-flash-lite`; the code fallback is `gpt-5.4-mini`. |
 | `OPENAI_API_KEY` | Credential for an OpenAI model. |
 | `ANTHROPIC_API_KEY` | Credential when `MOZAIK_MODEL` starts with `claude-`. |
 | `GEMINI_API_KEY` | Credential when `MOZAIK_MODEL` starts with `gemini-`. |
+| `GEMINI_REQUESTS_PER_MINUTE` | Optional Gemini quota gate; defaults to `5` for free-tier compatibility. |
 | `MOZAIK_API_KEY` | Optional Mozaik Cloud project key for native v4 loop telemetry. |
 | `MOZAIK_PROJECT_ID` | Optional Mozaik Cloud project handle. |
 | `MOZAIK_REDACTION` | Cloud payload privacy level; the example defaults to `content`. |
@@ -205,6 +206,7 @@ Runs are written atomically to `data/runs/<run-id>.json`; comparisons are writte
 - The project contains one controlled incident benchmark, not a general agent evaluation platform.
 - One run is not statistically significant. Model-backed results may vary between executions.
 - Fixture timing and structured outputs are deterministic demonstrations, not provider-performance measurements.
+- Provider quota waits are included in measured latency. Free-tier Gemini runs can therefore be substantially slower than paid-tier runs.
 - SSE session state is in memory and local JSON is single-machine storage. This is not designed for multi-instance deployment.
 - The current ablation suppresses one source-agent to reacting-agent class, not an arbitrary causal subgraph.
 - Quality measures agreement with this benchmark's known answer and evidence set; it does not measure every dimension of investigation quality.

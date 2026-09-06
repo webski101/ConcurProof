@@ -13,6 +13,7 @@ import {
   ROLE_PROMPTS,
 } from "@/lib/agents/prompts";
 import { createConcurProofRuntime } from "@/lib/mozaik/runtime";
+import { waitForProviderQuota } from "@/lib/mozaik/rate-limit";
 
 class OwnModelAnswerSpecification extends SituationSpecification {
   override isSatisfiedBy({ event, participant }: SituationContext): boolean {
@@ -31,7 +32,9 @@ export async function runModelAgent(input: {
   previous?: AgentFinding[];
   model: string;
   timeoutMs?: number;
+  quotaReserved?: boolean;
 }): Promise<AgentFinding> {
+  if (!input.quotaReserved) await waitForProviderQuota(input.model);
   const runtime = createConcurProofRuntime();
   let resolveResult: (value: AgentFinding) => void = () => undefined;
   let rejectResult: (reason: Error) => void = () => undefined;
@@ -79,7 +82,11 @@ export async function runModelAgent(input: {
         model: input.model,
         context: participant.getMemory().getContext(),
         tools: participant.getTools(),
-        streaming: true,
+        // Mozaik 4.0.5's Gemini streaming adapter can return an output without
+        // the assistant message required by its transition resolver. The
+        // non-streaming path preserves loop lifecycle events and returns a
+        // complete, transitionable model response.
+        streaming: false,
         structuredOutput: AGENT_FINDING_SCHEMA,
         maxOutputTokens: 1200,
       },

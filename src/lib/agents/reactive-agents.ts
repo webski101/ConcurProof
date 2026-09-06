@@ -27,6 +27,7 @@ import {
   type ConcurProofAuditPayload,
 } from "@/lib/mozaik/events";
 import type { ConcurProofRuntime } from "@/lib/mozaik/runtime";
+import { waitForProviderQuota } from "@/lib/mozaik/rate-limit";
 
 type Trigger = {
   eventId: string;
@@ -41,6 +42,7 @@ type AgentOptions = {
   provenance: RunProvenance;
   signal: AbortSignal;
   nextEventId: () => string;
+  initialQuotaReserved?: boolean;
   ablation?: AblationRule;
 };
 
@@ -241,7 +243,12 @@ abstract class ConcurProofAgent {
     return trigger ? this.reactiveFixture(trigger) : this.initialFixture();
   }
 
-  private modelFinding(trigger?: Trigger): Promise<AgentFinding> {
+  private async modelFinding(trigger?: Trigger): Promise<AgentFinding> {
+    if (trigger || !this.options.initialQuotaReserved) {
+      await waitForProviderQuota(this.options.model, 1, {
+        signal: this.options.signal,
+      });
+    }
     const result = new Promise<AgentFinding>((resolve, reject) => {
       const onAbort = () => {
         const reason = this.options.signal.reason;
@@ -290,7 +297,9 @@ abstract class ConcurProofAgent {
           model: this.options.model,
           context: this.participant.getMemory().getContext(),
           tools: this.participant.getTools(),
-          streaming: true,
+          // Keep provider inference on Mozaik's stable transition path. The
+          // experiment itself still streams lifecycle events to the UI.
+          streaming: false,
           structuredOutput: AGENT_FINDING_SCHEMA,
           maxOutputTokens: 1200,
         },

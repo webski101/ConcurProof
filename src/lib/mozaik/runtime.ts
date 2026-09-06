@@ -1,6 +1,8 @@
 import {
   defineRuntime,
+  GeminiGenerateContent,
   RuntimeState,
+  supportedModels,
   type InferenceRunnerConfig,
   type Participant,
 } from "@mozaik-ai/core";
@@ -18,12 +20,32 @@ export class ConcurProofRuntimeState extends RuntimeState {
   }
 }
 
+const gemini35Flash = supportedModels.find(
+  (model) => model.specification.name === "gemini-3.5-flash",
+);
+const gemini35FlashLite = gemini35Flash
+  ? {
+      endpoint: new GeminiGenerateContent(),
+      specification: {
+        ...gemini35Flash.specification,
+        name: "gemini-3.5-flash-lite",
+      },
+    }
+  : undefined;
+const concurProofModels = gemini35FlashLite
+  ? [...supportedModels, gemini35FlashLite]
+  : supportedModels;
+
 export function createConcurProofRuntime(
   inferenceRunnerConfig?: InferenceRunnerConfig,
 ) {
   const runtime = defineRuntime<ConcurProofRuntimeState>();
   const state = new ConcurProofRuntimeState();
-  runtime.initializeRuntime({ state, inferenceRunnerConfig });
+  runtime.initializeRuntime({
+    state,
+    inferenceRunnerConfig:
+      inferenceRunnerConfig ?? { supportedModels: concurProofModels },
+  });
 
   return { ...runtime, state };
 }

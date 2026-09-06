@@ -4,6 +4,7 @@ import { RunRecorder } from "@/lib/runners/recorder";
 import { createRunId, finalizeRun } from "@/lib/runners/finalize";
 import { fixtureDelay, fixtureFinding, sleep } from "@/lib/agents/fixture";
 import { runModelAgent } from "@/lib/agents/model-inference";
+import { waitForProviderQuota } from "@/lib/mozaik/rate-limit";
 
 const ROLES: AgentId[] = ["evidence", "hypothesis", "critic", "verifier"];
 
@@ -26,6 +27,9 @@ export class ParallelRunner implements ExperimentRunner {
     });
 
     try {
+      if (this.options.provenance === "real-mozaik") {
+        await waitForProviderQuota(this.options.model, ROLES.length);
+      }
       await Promise.all(
         ROLES.map(async (role) => {
           const interval = recorder.startActivity(role, "initial");
@@ -40,6 +44,7 @@ export class ParallelRunner implements ExperimentRunner {
                   task,
                   previous: [],
                   model: this.options.model,
+                  quotaReserved: true,
                 });
           outputs[role] = finding;
           recorder.recordOutput(role, finding);

@@ -6,6 +6,7 @@ import { createRunId, finalizeRun } from "@/lib/runners/finalize";
 import { ConcurProofObserver } from "@/lib/mozaik/observer";
 import { CONCURPROOF_RUN_EVENT } from "@/lib/mozaik/events";
 import { createConcurProofRuntime } from "@/lib/mozaik/runtime";
+import { waitForProviderQuota } from "@/lib/mozaik/rate-limit";
 import {
   CriticAgent,
   EvidenceAgent,
@@ -43,7 +44,8 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
 
   async run(task: BenchmarkTask) {
     const startedAt = Date.now();
-    const maximumRunDurationMs = 90_000;
+    const maximumRunDurationMs =
+      this.options.provenance === "real-mozaik" ? 300_000 : 90_000;
     const abortController = new AbortController();
     const safetyTimer = setTimeout(
       () => abortController.abort(new Error(`Reactive run exceeded the ${maximumRunDurationMs} ms safety limit.`)),
@@ -63,6 +65,7 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
       provenance: this.options.provenance,
       signal: abortController.signal,
       nextEventId: () => recorder.nextEventId(),
+      initialQuotaReserved: this.options.provenance === "real-mozaik",
       ablation: this.options.ablation,
     };
     const observer = new ConcurProofObserver(recorder, runtime.state);
@@ -90,6 +93,11 @@ export class ReactiveConcurrentRunner implements ExperimentRunner {
     });
 
     try {
+      if (this.options.provenance === "real-mozaik") {
+        await waitForProviderQuota(this.options.model, agents.length, {
+          signal: abortController.signal,
+        });
+      }
       runtime.sendEvent(
         SemanticEvent.create(
           CONCURPROOF_RUN_EVENT,
