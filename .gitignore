@@ -5,7 +5,11 @@ node_modules/
 .env.*.local
 coverage/
 data/runs/*.json
+data/runs/*.tmp
 data/experiments/*.json
+data/experiments/*.tmp
 *.log
 *.tsbuildinfo
 .DS_Store
+
+.vercel/

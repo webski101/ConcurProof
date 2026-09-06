@@ -55,15 +55,17 @@ export function ExperimentDashboard({
   const [model, setModel] = useState("Awaiting run");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string>();
-  const sourceRef = useRef<EventSource | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
   const completedRef = useRef(false);
 
   useEffect(() => {
-    return () => sourceRef.current?.close();
+    return () => requestRef.current?.abort();
   }, []);
 
   async function startExperiment() {
-    sourceRef.current?.close();
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     completedRef.current = false;
     setEvents({ sequential: [], parallel: [], reactive: [] });
     setRuns({});
@@ -74,19 +76,21 @@ export function ExperimentDashboard({
     setIsRunning(true);
 
     try {
-      const response = await fetch("/api/experiments", { method: "POST" });
-      const start = (await response.json()) as {
-        experimentId?: string;
-        streamUrl?: string;
-        error?: string;
-      };
-      if (!response.ok || !start.streamUrl) {
-        throw new Error(start.error ?? "Could not start the experiment.");
+      const response = await fetch("/api/experiments", {
+        method: "POST",
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        throw new Error(
+          (await response.text()) || "Could not start the experiment.",
+        );
       }
-      const source = new EventSource(start.streamUrl);
-      sourceRef.current = source;
-      source.onmessage = (event) => {
-        const message = JSON.parse(event.data) as ExperimentStreamMessage;
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const handleMessage = (message: ExperimentStreamMessage) => {
         if (message.type === "experiment.started") {
           setProvenance(message.provenance);
           setModel(message.model);
@@ -110,25 +114,39 @@ export function ExperimentDashboard({
           setComparison(message.comparison);
           setIsRunning(false);
           setActiveMode("reactive");
-          source.close();
         }
         if (message.type === "experiment.failed") {
           completedRef.current = true;
           setError(message.message);
           setIsRunning(false);
-          source.close();
         }
       };
-      source.onerror = () => {
-        source.close();
-        if (!completedRef.current) {
-          setError("The live event stream closed before the experiment completed.");
-          setIsRunning(false);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+        for (const frame of frames) {
+          const data = frame
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trimStart())
+            .join("\n");
+          if (data) handleMessage(JSON.parse(data) as ExperimentStreamMessage);
         }
-      };
+      }
+
+      if (!completedRef.current) {
+        throw new Error("The live event stream closed before the experiment completed.");
+      }
     } catch (runError) {
+      if (controller.signal.aborted) return;
       setError(runError instanceof Error ? runError.message : "Could not start the experiment.");
       setIsRunning(false);
+    } finally {
+      if (requestRef.current === controller) requestRef.current = null;
     }
   }
 

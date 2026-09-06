@@ -2,6 +2,7 @@ import type { AblationRule, AgentId } from "@/lib/types";
 import { runAblation } from "@/lib/experiments/run-experiment";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const validAgents = new Set<AgentId>([
   "evidence",
