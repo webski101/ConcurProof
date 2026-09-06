@@ -266,7 +266,7 @@ export function ExperimentDashboard({
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--cp-line)] px-4 py-3 text-[10px] text-[var(--cp-faint)] sm:px-5">
           <span className="cp-mono">MODEL {model}</span>
-          <span>{isRunning ? `${completedCount}/3 modes complete` : comparison ? "Experiment persisted locally" : "Ready for controlled execution"}</span>
+          <span>{isRunning ? `${completedCount}/3 modes complete` : comparison ? "Experiment persisted" : "Ready for controlled execution"}</span>
         </div>
       </section>
 
